@@ -1,44 +1,54 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, StatusBar, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthContext';
-import { UserStatus } from '../types';
+import { colors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import Card from '../components/Card';
+
+interface StatusOption {
+  emoji: string;
+  text: string;
+  description: string;
+  color: string;
+}
+
+const statusOptions: StatusOption[] = [
+  {
+    emoji: '🟢',
+    text: 'Free',
+    description: 'Available to hang out',
+    color: colors.success,
+  },
+  {
+    emoji: '🟡',
+    text: 'Maybe',
+    description: 'Might be free, ask me',
+    color: colors.warning,
+  },
+  {
+    emoji: '🔴',
+    text: 'Busy',
+    description: 'Not available right now',
+    color: colors.error,
+  },
+];
 
 const StatusScreen = () => {
-  const { user } = useAuth();
+  const { user, updateUserStatus } = useAuth();
   const [updating, setUpdating] = useState(false);
 
-  const statusOptions: UserStatus[] = [
-    { emoji: '😊', text: 'Available', updatedAt: new Date() },
-    { emoji: '🏃', text: 'At the gym', updatedAt: new Date() },
-    { emoji: '🧠', text: 'Studying', updatedAt: new Date() },
-    { emoji: '💼', text: 'Working', updatedAt: new Date() },
-    { emoji: '🍽️', text: 'Eating', updatedAt: new Date() },
-    { emoji: '🚗', text: 'Driving', updatedAt: new Date() },
-    { emoji: '🏠', text: 'At home', updatedAt: new Date() },
-    { emoji: '🎉', text: 'Partying', updatedAt: new Date() },
-    { emoji: '😴', text: 'Sleeping', updatedAt: new Date() },
-    { emoji: '🤒', text: 'Sick', updatedAt: new Date() },
-    { emoji: '✈️', text: 'Traveling', updatedAt: new Date() },
-    { emoji: '📵', text: 'Do not disturb', updatedAt: new Date() },
-  ];
-
-  const updateStatus = async (newStatus: UserStatus) => {
+  const updateStatus = async (statusOption: StatusOption) => {
     if (!user) return;
 
     setUpdating(true);
     try {
-      const userRef = doc(db, 'users', user.id);
-      await updateDoc(userRef, {
-        status: {
-          ...newStatus,
-          updatedAt: new Date(),
-        },
+      await updateUserStatus({
+        emoji: statusOption.emoji,
+        text: statusOption.text,
         updatedAt: new Date(),
       });
 
-      Alert.alert('Success', 'Status updated successfully!');
+      Alert.alert('Status Updated', `Your status is now "${statusOption.emoji} ${statusOption.text}"`);
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
     } finally {
@@ -46,155 +56,200 @@ const StatusScreen = () => {
     }
   };
 
-  const renderStatusOption = (status: UserStatus) => {
-    const isSelected = user?.status.emoji === status.emoji && user?.status.text === status.text;
+  const renderStatusOption = (option: StatusOption) => {
+    const isCurrentStatus = user?.status?.text === option.text;
     
+    const cardStyle = isCurrentStatus 
+      ? { ...styles.statusCard, borderColor: option.color, borderWidth: 2 }
+      : styles.statusCard;
+
     return (
       <TouchableOpacity
-        key={`${status.emoji}-${status.text}`}
-        style={[styles.statusOption, isSelected && styles.selectedStatus]}
-        onPress={() => updateStatus(status)}
-        disabled={updating}
+        key={option.text}
+        style={styles.statusOption}
+        onPress={() => updateStatus(option)}
+        disabled={updating || isCurrentStatus}
       >
-        <Text style={styles.statusEmoji}>{status.emoji}</Text>
-        <Text style={[styles.statusText, isSelected && styles.selectedStatusText]}>
-          {status.text}
-        </Text>
-        {isSelected && (
-          <View style={styles.checkmark}>
-            <Text style={styles.checkmarkText}>✓</Text>
+        <Card 
+          style={cardStyle}
+          shadow={isCurrentStatus ? "medium" : "small"}
+        >
+          <View style={styles.statusContent}>
+            <View style={styles.statusLeft}>
+              <Text style={styles.statusEmoji}>{option.emoji}</Text>
+              <View style={styles.statusInfo}>
+                <Text style={[styles.statusText, isCurrentStatus && { color: option.color }]}>
+                  {option.text}
+                </Text>
+                <Text style={styles.statusDescription}>{option.description}</Text>
+              </View>
+            </View>
+            
+            {isCurrentStatus ? (
+              <View style={[styles.currentBadge, { backgroundColor: option.color }]}>
+                <Text style={styles.currentBadgeText}>Current</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={colors.gray400} />
+            )}
           </View>
-        )}
+        </Card>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.currentStatus}>
-        <Text style={styles.currentStatusLabel}>Current Status</Text>
-        <View style={styles.currentStatusDisplay}>
-          <Text style={styles.currentStatusEmoji}>{user?.status.emoji}</Text>
-          <Text style={styles.currentStatusText}>{user?.status.text}</Text>
-        </View>
-        <Text style={styles.lastUpdated}>
-          Last updated: {user?.status.updatedAt.toLocaleString()}
-        </Text>
-      </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.white} />
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        
+        {/* Current Status Display */}
+        <Card style={styles.currentStatusCard} shadow="medium">
+          <View style={styles.currentStatusHeader}>
+            <Text style={styles.currentStatusLabel}>Your Current Status</Text>
+            <Text style={styles.lastUpdated}>
+              Updated {user?.status?.updatedAt ? new Date(user.status.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never'}
+            </Text>
+          </View>
+          
+          <View style={styles.currentStatusDisplay}>
+            <Text style={styles.currentStatusEmoji}>{user?.status?.emoji || '🟢'}</Text>
+            <View style={styles.currentStatusInfo}>
+              <Text style={styles.currentStatusText}>{user?.status?.text || 'Free'}</Text>
+              <Text style={styles.currentStatusSubtext}>
+                {statusOptions.find(opt => opt.text === user?.status?.text)?.description || 'Available to hang out'}
+              </Text>
+            </View>
+          </View>
+        </Card>
 
-      <Text style={styles.sectionTitle}>Choose Your Vibe</Text>
-      
-      <ScrollView style={styles.statusList} showsVerticalScrollIndicator={false}>
-        {statusOptions.map(renderStatusOption)}
+        {/* Status Options */}
+        <View style={styles.statusOptionsSection}>
+          <Text style={styles.sectionTitle}>Choose Your Status</Text>
+          <Text style={styles.sectionSubtitle}>
+            Let your friends know what you're up to
+          </Text>
+          
+          <View style={styles.statusOptions}>
+            {statusOptions.map(renderStatusOption)}
+          </View>
+        </View>
+
       </ScrollView>
-      
-      <Text style={styles.hint}>
-        Your status will be visible to friends in your groups
-      </Text>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
-  currentStatus: {
-    backgroundColor: 'white',
-    margin: 16,
-    padding: 20,
-    borderRadius: 12,
+  scrollContainer: {
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  currentStatusCard: {
+    marginBottom: spacing.lg,
+  },
+  currentStatusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: spacing.md,
   },
   currentStatusLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 12,
+    fontSize: typography.sm,
+    fontWeight: typography.medium,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  lastUpdated: {
+    fontSize: typography.xs,
+    color: colors.textTertiary,
   },
   currentStatusDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
   },
   currentStatusEmoji: {
-    fontSize: 32,
-    marginRight: 12,
+    fontSize: 40,
+    marginRight: spacing.md,
+  },
+  currentStatusInfo: {
+    flex: 1,
   },
   currentStatusText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: typography.xl,
+    fontWeight: typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: 4,
   },
-  lastUpdated: {
-    fontSize: 12,
-    color: '#999',
+  currentStatusSubtext: {
+    fontSize: typography.base,
+    color: colors.textSecondary,
+  },
+  statusOptionsSection: {
+    marginTop: spacing.md,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginHorizontal: 16,
-    marginBottom: 12,
+    fontSize: typography.lg,
+    fontWeight: typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
   },
-  statusList: {
-    flex: 1,
-    paddingHorizontal: 16,
+  sectionSubtitle: {
+    fontSize: typography.base,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+  },
+  statusOptions: {
+    gap: spacing.sm,
   },
   statusOption: {
+    marginBottom: spacing.xs,
+  },
+  statusCard: {
+    borderWidth: 1,
+    borderColor: colors.gray100,
+  },
+  statusContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    justifyContent: 'space-between',
   },
-  selectedStatus: {
-    backgroundColor: '#007AFF',
+  statusLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   statusEmoji: {
     fontSize: 24,
-    marginRight: 12,
+    marginRight: spacing.md,
+  },
+  statusInfo: {
+    flex: 1,
   },
   statusText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: 2,
   },
-  selectedStatusText: {
-    color: 'white',
-    fontWeight: '600',
+  statusDescription: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
   },
-  checkmark: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
+  currentBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
   },
-  checkmarkText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  hint: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    margin: 16,
-    fontStyle: 'italic',
+  currentBadgeText: {
+    fontSize: typography.xs,
+    fontWeight: typography.medium,
+    color: colors.white,
   },
 });
 

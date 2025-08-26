@@ -2,6 +2,7 @@ export interface User {
   id: string;
   email: string;
   displayName: string;
+  profilePicture?: string; // URL to profile picture
   status: UserStatus;
   createdAt: Date;
   updatedAt: Date;

@@ -1,7 +1,9 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 import { RootTabParamList } from '../types';
+import { colors, spacing } from '../utils/theme';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -16,64 +18,102 @@ const TabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let emoji: string;
+        tabBarIcon: ({ focused, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+          const iconColor = focused ? colors.primary : colors.gray400;
 
-          if (route.name === 'Home') {
-            emoji = focused ? '🏠' : '🏡';
-          } else if (route.name === 'SendPing') {
-            emoji = focused ? '📱' : '📲';
-          } else if (route.name === 'Groups') {
-            emoji = focused ? '👥' : '👤';
-          } else if (route.name === 'Status') {
-            emoji = focused ? '😊' : '🙂';
-          } else if (route.name === 'Profile') {
-            emoji = focused ? '👨‍💼' : '👤';
-          } else {
-            emoji = '❓';
+          switch (route.name) {
+            case 'Home':
+              iconName = focused ? 'home' : 'home-outline';
+              break;
+            case 'SendPing':
+              iconName = focused ? 'add-circle' : 'add-circle-outline';
+              break;
+            case 'Groups':
+              iconName = focused ? 'people' : 'people-outline';
+              break;
+            case 'Status':
+              iconName = focused ? 'heart' : 'heart-outline';
+              break;
+            case 'Profile':
+              iconName = focused ? 'person-circle' : 'person-circle-outline';
+              break;
+            default:
+              iconName = 'help-outline';
           }
 
-          return (
-            <Text style={{ fontSize: size, color: focused ? '#007AFF' : '#8E8E93' }}>
-              {emoji}
-            </Text>
-          );
+          return <Ionicons name={iconName} size={size} color={iconColor} />;
         },
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.gray400,
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopWidth: 1,
+          borderTopColor: colors.gray100,
+          paddingTop: spacing.xs,
+          paddingBottom: Platform.OS === 'ios' ? spacing.lg : spacing.sm,
+          height: Platform.OS === 'ios' ? 90 : 70,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
+          marginTop: 2,
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+        },
         headerStyle: {
-          backgroundColor: '#007AFF',
+          backgroundColor: colors.white,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.gray100,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        headerTintColor: 'white',
         headerTitleStyle: {
-          fontWeight: 'bold',
+          color: colors.primary,
+          fontSize: 18,
+          fontWeight: '700',
         },
+        headerTintColor: colors.primary,
       })}
     >
       <Tab.Screen 
         name="Home" 
         component={HomeScreen} 
-        options={{ title: 'Recent Pings' }}
+        options={{ 
+          title: 'Home',
+          headerTitle: 'Recent Pings'
+        }}
       />
       <Tab.Screen 
         name="SendPing" 
         component={SendPingScreen} 
-        options={{ title: 'Send Ping' }}
+        options={{ 
+          title: 'Ping',
+          headerTitle: 'Send Ping'
+        }}
       />
       <Tab.Screen 
         name="Groups" 
         component={GroupsScreen} 
-        options={{ title: 'My Groups' }}
+        options={{ 
+          title: 'Groups',
+          headerTitle: 'My Groups'
+        }}
       />
       <Tab.Screen 
         name="Status" 
         component={StatusScreen} 
-        options={{ title: 'My Status' }}
+        options={{ 
+          title: 'Status',
+          headerTitle: 'My Status'
+        }}
       />
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen} 
-        options={{ title: 'Profile' }}
+        options={{ 
+          title: 'Profile',
+          headerTitle: 'Profile'
+        }}
       />
     </Tab.Navigator>
   );

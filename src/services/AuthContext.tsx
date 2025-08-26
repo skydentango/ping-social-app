@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
+import { doc, setDoc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { User } from '../types';
+import { User, UserStatus } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -10,13 +10,15 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserStatus: (status: UserStatus) => Promise<void>;
+  updateProfilePicture: (imageUri: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -27,28 +29,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+    let unsubscribeUser: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      // Clean up previous user listener if it exists
+      if (unsubscribeUser) {
+        unsubscribeUser();
+        unsubscribeUser = null;
+      }
+
       if (firebaseUser) {
-        // Get user data from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email!,
-            displayName: firebaseUser.displayName || userData.displayName,
-            status: userData.status || { emoji: '😊', text: 'Available', updatedAt: new Date() },
-            createdAt: userData.createdAt?.toDate() || new Date(),
-            updatedAt: userData.updatedAt?.toDate() || new Date(),
-          });
-        }
+        // Set up real-time listener for user document
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        
+        unsubscribeUser = onSnapshot(userDocRef, (userDoc) => {
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email!,
+              displayName: firebaseUser.displayName || userData.displayName,
+              profilePicture: userData.profilePicture || undefined,
+              status: userData.status || { emoji: '🟢', text: 'Free', updatedAt: new Date() },
+              createdAt: userData.createdAt?.toDate() || new Date(),
+              updatedAt: userData.updatedAt?.toDate() || new Date(),
+            });
+          } else {
+            console.log('User document does not exist, creating...');
+            // User document doesn't exist, create a basic one
+            const basicUserData = {
+              displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+              email: firebaseUser.email!,
+              profilePicture: '',
+              status: { emoji: '🟢', text: 'Free', updatedAt: new Date() },
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            setDoc(userDocRef, basicUserData).then(() => {
+              console.log('User document created');
+            }).catch((error) => {
+              console.error('Error creating user document:', error);
+            });
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error('User document listener error:', error);
+          setLoading(false);
+        });
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    // Cleanup function
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUser) {
+        unsubscribeUser();
+      }
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -65,12 +105,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userData = {
       displayName,
       email,
-      status: { emoji: '😊', text: 'Available', updatedAt: new Date() },
+      profilePicture: '', // Initialize empty profile picture
+      status: { emoji: '🟢', text: 'Free', updatedAt: new Date() },
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+  };
+
+  const updateUserStatus = async (status: UserStatus) => {
+    if (!user) throw new Error('No user logged in');
+
+    const userRef = doc(db, 'users', user.id);
+    await updateDoc(userRef, {
+      status: {
+        emoji: status.emoji,
+        text: status.text,
+        updatedAt: new Date(),
+      },
+      updatedAt: new Date(),
+    });
+  };
+
+  const updateProfilePicture = async (imageUri: string) => {
+    if (!user) throw new Error('No user logged in');
+
+    const userRef = doc(db, 'users', user.id);
+    await updateDoc(userRef, {
+      profilePicture: imageUri,
+      updatedAt: new Date(),
+    });
   };
 
   const logout = async () => {
@@ -83,6 +148,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     logout,
+    updateUserStatus,
+    updateProfilePicture,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

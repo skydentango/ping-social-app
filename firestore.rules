@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read and write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Groups rules
+    match /groups/{groupId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.createdBy;
+      allow update: if request.auth != null && request.auth.uid == resource.data.createdBy;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
+    }
+    
+    // Pings rules
+    match /pings/{pingId} {
+      // Anyone in the group can read pings
+      allow read: if request.auth != null;
+      
+      // Only authenticated users can create pings
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.senderId;
+      
+      // Users can update pings to add responses
+      allow update: if request.auth != null;
+      
+      // Users can only delete their own pings
+      allow delete: if request.auth != null && request.auth.uid == resource.data.senderId;
+    }
+    
+    // Allow reading all documents for authenticated users (for now - you might want to restrict this later)
+    match /{document=**} {
+      allow read: if request.auth != null;
+    }
+  }
+} 

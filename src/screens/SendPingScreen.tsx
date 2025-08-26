@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, FlatList, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, FlatList, Modal, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../services/firebase';
@@ -42,6 +42,9 @@ const SendPingScreen = () => {
       return;
     }
 
+    // Dismiss keyboard when sending
+    Keyboard.dismiss();
+
     setSending(true);
     try {
       await addDoc(collection(db, 'pings'), {
@@ -79,73 +82,78 @@ const SendPingScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.form}>
-        <Text style={styles.label}>Select Group</Text>
-        <TouchableOpacity
-          style={styles.groupSelector}
-          onPress={() => setShowGroupPicker(true)}
-        >
-          <Text style={[styles.groupSelectorText, !selectedGroup && styles.placeholder]}>
-            {selectedGroup ? selectedGroup.name : 'Choose a group...'}
-          </Text>
-          <Ionicons name="chevron-down" size={20} color="#666" />
-        </TouchableOpacity>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <View style={styles.form}>
+          <Text style={styles.label}>Select Group</Text>
+          <TouchableOpacity
+            style={styles.groupSelector}
+            onPress={() => setShowGroupPicker(true)}
+          >
+            <Text style={[styles.groupSelectorText, !selectedGroup && styles.placeholder]}>
+              {selectedGroup ? selectedGroup.name : 'Choose a group...'}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color="#666" />
+          </TouchableOpacity>
 
-        <Text style={styles.label}>Message</Text>
-        <TextInput
-          style={styles.messageInput}
-          placeholder="What's the plan? (e.g., Anyone down to get boba?)"
-          value={message}
-          onChangeText={setMessage}
-          multiline
-          maxLength={200}
-        />
-        <Text style={styles.characterCount}>{message.length}/200</Text>
-
-        <TouchableOpacity
-          style={[styles.sendButton, (!selectedGroup || !message.trim() || sending) && styles.sendButtonDisabled]}
-          onPress={sendPing}
-          disabled={!selectedGroup || !message.trim() || sending}
-        >
-          <Ionicons name="send" size={20} color="white" />
-          <Text style={styles.sendButtonText}>
-            {sending ? 'Sending...' : 'Send Ping'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {groups.length === 0 && (
-        <View style={styles.emptyState}>
-          <Ionicons name="people-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>No Groups Yet</Text>
-          <Text style={styles.emptySubtitle}>Create a group in the Groups tab to start sending pings!</Text>
-        </View>
-      )}
-
-      <Modal
-        visible={showGroupPicker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowGroupPicker(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Group</Text>
-            <View style={styles.modalSpacer} />
-          </View>
-          
-          <FlatList
-            data={groups}
-            renderItem={renderGroupItem}
-            keyExtractor={(item) => item.id}
-            style={styles.groupList}
+          <Text style={styles.label}>Message</Text>
+          <TextInput
+            style={styles.messageInput}
+            placeholder="What's the plan? (e.g., Anyone down to get boba?)"
+            value={message}
+            onChangeText={setMessage}
+            multiline
+            maxLength={200}
+            returnKeyType="done"
+            blurOnSubmit={true}
+            onSubmitEditing={Keyboard.dismiss}
           />
+          <Text style={styles.characterCount}>{message.length}/200</Text>
+
+          <TouchableOpacity
+            style={[styles.sendButton, (!selectedGroup || !message.trim() || sending) && styles.sendButtonDisabled]}
+            onPress={sendPing}
+            disabled={!selectedGroup || !message.trim() || sending}
+          >
+            <Ionicons name="send" size={20} color="white" />
+            <Text style={styles.sendButtonText}>
+              {sending ? 'Sending...' : 'Send Ping'}
+            </Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </View>
+
+        {groups.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>No Groups Yet</Text>
+            <Text style={styles.emptySubtitle}>Create a group in the Groups tab to start sending pings!</Text>
+          </View>
+        )}
+
+        <Modal
+          visible={showGroupPicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowGroupPicker(false)}>
+                <Text style={styles.modalCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Select Group</Text>
+              <View style={styles.modalSpacer} />
+            </View>
+            
+            <FlatList
+              data={groups}
+              renderItem={renderGroupItem}
+              keyExtractor={(item) => item.id}
+              style={styles.groupList}
+            />
+          </View>
+        </Modal>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
