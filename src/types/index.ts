@@ -26,10 +26,12 @@ export interface Group {
 export interface Ping {
   id: string;
   message: string;
-  groupId: string;
+  groupId?: string; // Optional - for group pings
+  recipients: string[]; // User IDs - for individual friend pings or group members
   senderId: string;
   sentAt: Date;
   responses: PingResponse[];
+  type: 'group' | 'friends'; // New field to distinguish ping types
 }
 
 export interface PingResponse {

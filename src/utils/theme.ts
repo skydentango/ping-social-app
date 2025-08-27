@@ -1,5 +1,5 @@
 // Design System - Uber-inspired theme
-export const colors = {
+export const lightColors = {
   // Primary Colors (Uber-inspired)
   primary: '#00D4AA', // Uber green
   primaryDark: '#00B894',
@@ -35,6 +35,51 @@ export const colors = {
   textTertiary: '#ADB5BD',
   textInverse: '#FFFFFF',
 };
+
+export const darkColors = {
+  // Primary Colors (same as light)
+  primary: '#00D4AA', // Uber green
+  primaryDark: '#00B894',
+  primaryLight: '#1A2F2A', // Dark teal background
+  secondary: '#E9ECEF',
+  
+  // Functional Colors
+  success: '#00D4AA',
+  warning: '#FDCB6E',
+  error: '#E74C3C',
+  info: '#74B9FF',
+  
+  // Neutral Colors - Maximum contrast for dark mode
+  white: '#404040', // Much lighter cards that really pop out
+  black: '#FFFFFF',
+  background: '#0D0D0D', // Even darker background for maximum contrast
+  
+  // Gray Scale - Maximum contrast hierarchy
+  gray50: '#0D0D0D', // Darkest background
+  gray100: '#1A1A1A', // Very dark
+  gray200: '#404040', // Card backgrounds - much lighter
+  gray300: '#606060', // Borders - more visible
+  gray400: '#808080', // Inactive elements
+  gray500: '#A0A0A0', // Secondary text
+  gray600: '#C0C0C0', // Light secondary
+  gray700: '#D0D0D0', // Lighter
+  gray800: '#E0E0E0', // Very light
+  gray900: '#FFFFFF', // Pure white text
+  
+  // Text Colors - High contrast
+  textPrimary: '#FFFFFF', // Pure white for main text
+  textSecondary: '#B3B3B3', // Light gray for secondary text
+  textTertiary: '#808080', // Medium gray for tertiary text
+  textInverse: '#121212', // Dark text for light backgrounds
+};
+
+// Function to get colors based on theme
+export const getColors = (isDarkMode: boolean) => {
+  return isDarkMode ? darkColors : lightColors;
+};
+
+// Export default light colors for backward compatibility
+export const colors = lightColors;
 
 export const typography = {
   // Font sizes
@@ -76,29 +121,69 @@ export const borderRadius = {
   full: 9999,
 };
 
-export const shadows = {
+// Static shadows for light theme
+export const lightShadows = {
   small: {
-    shadowColor: colors.gray900,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   medium: {
-    shadowColor: colors.gray900,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
   },
   large: {
-    shadowColor: colors.gray900,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 5,
   },
 };
+
+// Enhanced shadows for dark theme with borders
+export const darkShadows = {
+  small: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#606060',
+  },
+  medium: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#606060',
+  },
+  large: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#606060',
+  },
+};
+
+// Function to get shadows based on theme
+export const getShadows = (isDarkMode: boolean) => {
+  return isDarkMode ? darkShadows : lightShadows;
+};
+
+// Export default light shadows for backward compatibility
+export const shadows = lightShadows;
 
 export const theme = {
   colors,

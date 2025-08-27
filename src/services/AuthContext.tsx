@@ -50,7 +50,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: firebaseUser.email!,
               displayName: firebaseUser.displayName || userData.displayName,
               profilePicture: userData.profilePicture || undefined,
-              status: userData.status || { emoji: '🟢', text: 'Free', updatedAt: new Date() },
+              status: userData.status ? {
+                emoji: userData.status.emoji,
+                text: userData.status.text,
+                updatedAt: userData.status.updatedAt?.toDate ? userData.status.updatedAt.toDate() : new Date(userData.status.updatedAt || Date.now())
+              } : { emoji: '🟢', text: 'Free', updatedAt: new Date() },
               createdAt: userData.createdAt?.toDate() || new Date(),
               updatedAt: userData.updatedAt?.toDate() || new Date(),
             });

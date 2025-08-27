@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
-import { colors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { getColors, typography, spacing, borderRadius, shadows } from '../utils/theme';
 
 interface ButtonProps {
   title: string;
@@ -23,6 +24,8 @@ const Button: React.FC<ButtonProps> = ({
   fullWidth = false,
   style,
 }) => {
+  const { isDarkMode } = useTheme();
+  const colors = getColors(isDarkMode);
   const getButtonStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       borderRadius: borderRadius.md,

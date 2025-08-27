@@ -3,7 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { RootTabParamList } from '../types';
-import { colors, spacing } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { getColors, spacing } from '../utils/theme';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -15,6 +16,9 @@ import ProfileScreen from '../screens/ProfileScreen';
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 const TabNavigator = () => {
+  const { isDarkMode } = useTheme();
+  const colors = getColors(isDarkMode);
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, StatusBar, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthContext';
-import { colors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { getColors, typography, spacing, borderRadius, shadows } from '../utils/theme';
 import Card from '../components/Card';
 
 interface StatusOption {
@@ -17,24 +18,27 @@ const statusOptions: StatusOption[] = [
     emoji: '🟢',
     text: 'Free',
     description: 'Available to hang out',
-    color: colors.success,
+    color: '#00D4AA', // Green - works in both themes
   },
   {
     emoji: '🟡',
     text: 'Maybe',
     description: 'Might be free, ask me',
-    color: colors.warning,
+    color: '#FDCB6E', // Orange - works in both themes
   },
   {
     emoji: '🔴',
     text: 'Busy',
     description: 'Not available right now',
-    color: colors.error,
+    color: '#E74C3C', // Red - works in both themes
   },
 ];
 
 const StatusScreen = () => {
   const { user, updateUserStatus } = useAuth();
+  const { isDarkMode } = useTheme();
+  const colors = getColors(isDarkMode);
+  const styles = createStyles(colors);
   const [updating, setUpdating] = useState(false);
 
   const updateStatus = async (statusOption: StatusOption) => {
@@ -108,7 +112,11 @@ const StatusScreen = () => {
           <View style={styles.currentStatusHeader}>
             <Text style={styles.currentStatusLabel}>Your Current Status</Text>
             <Text style={styles.lastUpdated}>
-              Updated {user?.status?.updatedAt ? new Date(user.status.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never'}
+              Updated {user?.status?.updatedAt ? 
+                (user.status.updatedAt instanceof Date ? 
+                  user.status.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
+                  new Date(user.status.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                ) : 'Never'}
             </Text>
           </View>
           
@@ -140,7 +148,7 @@ const StatusScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

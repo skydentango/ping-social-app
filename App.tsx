@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
 import { AuthProvider, useAuth } from './src/services/AuthContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 import TabNavigator from './src/navigation/TabNavigator';
 import AuthNavigator from './src/navigation/AuthNavigator';
 
@@ -28,10 +29,12 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-      <StatusBar style="auto" />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+        <StatusBar style="auto" />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

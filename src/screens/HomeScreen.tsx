@@ -1,40 +1,143 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, SafeAreaView, StatusBar, Platform } from 'react-native';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, SafeAreaView, StatusBar, Platform, RefreshControl } from 'react-native';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../services/firebase';
 import { useAuth } from '../services/AuthContext';
-import { Ping, PingResponse } from '../types';
-import { colors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { Ping, PingResponse, Group, User } from '../types';
+import { getColors, typography, spacing, borderRadius, shadows } from '../utils/theme';
 import Card from '../components/Card';
 
 const HomeScreen = () => {
   const { user } = useAuth();
+  const { isDarkMode } = useTheme();
+  const colors = getColors(isDarkMode);
+  const styles = createStyles(colors);
   const [pings, setPings] = useState<Ping[]>([]);
+  const [groups, setGroups] = useState<{[key: string]: Group}>({});
+  const [users, setUsers] = useState<{[key: string]: User}>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
+    // Load pings
     const pingsQuery = query(
       collection(db, 'pings'),
       orderBy('sentAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(pingsQuery, (snapshot) => {
-      const pingsData = snapshot.docs.map(doc => ({
+    const unsubscribePings = onSnapshot(pingsQuery, async (snapshot) => {
+      const allPings = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         sentAt: doc.data().sentAt?.toDate() || new Date(),
         responses: doc.data().responses || []
       })) as Ping[];
       
-      setPings(pingsData);
+      // Filter pings to only show ones the user should see
+      const userPings = allPings.filter(ping => {
+        // User should see pings where they are in the recipients array
+        return ping.recipients && ping.recipients.includes(user.id);
+      });
+      
+      // Load only the groups and users we need for these pings
+      const groupIds = new Set<string>();
+      const userIds = new Set<string>();
+      
+      userPings.forEach(ping => {
+        if (ping.type === 'group' && ping.groupId) {
+          groupIds.add(ping.groupId);
+        }
+        if (ping.recipients) {
+          ping.recipients.forEach(userId => userIds.add(userId));
+        }
+      });
+
+      // Load required groups
+      const groupsMap: {[key: string]: Group} = {};
+      for (const groupId of groupIds) {
+        try {
+          const groupDoc = await getDoc(doc(db, 'groups', groupId));
+          if (groupDoc.exists()) {
+            groupsMap[groupId] = {
+              id: groupId,
+              ...groupDoc.data(),
+              createdAt: groupDoc.data().createdAt?.toDate() || new Date(),
+              updatedAt: groupDoc.data().updatedAt?.toDate() || new Date(),
+            } as Group;
+          }
+        } catch (error) {
+          console.log('Could not load group:', groupId);
+        }
+      }
+
+      // Load required users
+      const usersMap: {[key: string]: User} = {};
+      for (const userId of userIds) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', userId));
+          if (userDoc.exists()) {
+            usersMap[userId] = {
+              id: userId,
+              ...userDoc.data(),
+              createdAt: userDoc.data().createdAt?.toDate() || new Date(),
+              updatedAt: userDoc.data().updatedAt?.toDate() || new Date(),
+              status: {
+                emoji: userDoc.data().status?.emoji || '🟢',
+                text: userDoc.data().status?.text || 'Free',
+                updatedAt: userDoc.data().status?.updatedAt?.toDate() || new Date(),
+              }
+            } as User;
+          }
+        } catch (error) {
+          console.log('Could not load user:', userId);
+        }
+      }
+
+      setGroups(groupsMap);
+      setUsers(usersMap);
+      setPings(userPings);
       setLoading(false);
     });
 
-    return unsubscribe;
+    return unsubscribePings;
   }, [user]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    // The onSnapshot listener will automatically update with fresh data
+    // We just need to simulate a brief refresh period for user feedback
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
+
+  const getPingRecipientText = (ping: Ping): string => {
+    if (ping.type === 'group' && ping.groupId && groups[ping.groupId]) {
+      return `👥 ${groups[ping.groupId].name}`;
+    } else if (ping.type === 'friends' && ping.recipients) {
+      // Filter out the sender from recipients to show only the actual friends
+      const friendIds = ping.recipients.filter(id => id !== ping.senderId);
+      const friendNames = friendIds.map(id => users[id]?.displayName || 'Friend').slice(0, 3);
+      
+      if (friendNames.length === 0) {
+        return '👤 Friends';
+      } else if (friendNames.length === 1) {
+        return `👤 ${friendNames[0]}`;
+      } else if (friendNames.length === 2) {
+        return `👤 ${friendNames[0]} & ${friendNames[1]}`;
+      } else {
+        const remaining = friendIds.length - 2;
+        return `👤 ${friendNames[0]}, ${friendNames[1]} & ${remaining} more`;
+      }
+    }
+    
+    // Fallback
+    return ping.type === 'group' ? '👥 Group' : '👤 Friends';
+  };
 
   const handleResponse = async (pingId: string, response: 'yes' | 'no' | 'maybe') => {
     if (!user) return;
@@ -159,7 +262,12 @@ const HomeScreen = () => {
               )}
             </View>
             <View style={styles.pingMetaRow}>
-              <Text style={styles.pingTime}>{getTimeAgo(item.sentAt)}</Text>
+              <View style={styles.pingTimeContainer}>
+                <Text style={styles.pingTime}>{getTimeAgo(item.sentAt)}</Text>
+                <Text style={styles.pingType}>
+                  {getPingRecipientText(item)}
+                </Text>
+              </View>
               {isMyPing && (
                 <Text style={styles.yourPingLabel}>Your ping</Text>
               )}
@@ -207,13 +315,21 @@ const HomeScreen = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         />
       )}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -264,9 +380,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  pingTimeContainer: {
+    flexDirection: 'column',
+  },
   pingTime: {
     fontSize: typography.sm,
     color: colors.textSecondary,
+  },
+  pingType: {
+    fontSize: typography.xs,
+    color: colors.textTertiary,
+    marginTop: 2,
   },
   yourPingLabel: {
     fontSize: typography.xs,

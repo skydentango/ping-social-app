@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, SafeAreaView, StatusBar, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthContext';
-import { colors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { getColors, typography, spacing, borderRadius, shadows } from '../utils/theme';
 import Button from '../components/Button';
 
 interface LoginScreenProps {
@@ -11,6 +12,9 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onSwitchToRegister }) => {
   const { signIn } = useAuth();
+  const { isDarkMode } = useTheme();
+  const colors = getColors(isDarkMode);
+  const styles = createStyles(colors);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -134,7 +138,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onSwitchToRegister }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,

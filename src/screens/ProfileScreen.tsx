@@ -3,12 +3,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, StatusBa
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../services/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { uploadProfilePicture } from '../services/imageUpload';
-import { colors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import { getColors, typography, spacing, borderRadius, shadows } from '../utils/theme';
 import Card from '../components/Card';
+import SampleDataButton from '../components/SampleDataButton';
 
 const ProfileScreen = () => {
   const { user, logout, updateProfilePicture } = useAuth();
+  const { isDarkMode, themeMode, setThemeMode } = useTheme();
+  const colors = getColors(isDarkMode);
+  const styles = createStyles(colors);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const handleLogout = () => {
@@ -21,6 +26,31 @@ const ProfileScreen = () => {
           text: 'Sign Out',
           style: 'destructive',
           onPress: logout,
+        },
+      ]
+    );
+  };
+
+  const handleThemePress = () => {
+    Alert.alert(
+      'Theme',
+      'Choose your preferred theme',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Light Mode', 
+          onPress: () => setThemeMode('light'),
+          style: themeMode === 'light' ? 'default' : undefined
+        },
+        { 
+          text: 'Dark Mode', 
+          onPress: () => setThemeMode('dark'),
+          style: themeMode === 'dark' ? 'default' : undefined
+        },
+        { 
+          text: 'System Default', 
+          onPress: () => setThemeMode('system'),
+          style: themeMode === 'system' ? 'default' : undefined
         },
       ]
     );
@@ -168,6 +198,17 @@ const ProfileScreen = () => {
             <Ionicons name="chevron-forward" size={20} color={colors.gray300} />
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.menuItem} onPress={handleThemePress}>
+            <Ionicons name="color-palette-outline" size={24} color={colors.textSecondary} />
+            <View style={styles.menuItemContent}>
+              <Text style={styles.menuItemText}>Theme</Text>
+              <Text style={styles.menuItemSubtext}>
+                {themeMode === 'light' ? 'Light mode' : themeMode === 'dark' ? 'Dark mode' : 'System default'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.gray300} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.menuItem}>
             <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
             <View style={styles.menuItemContent}>
@@ -194,6 +235,13 @@ const ProfileScreen = () => {
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.gray300} />
           </TouchableOpacity>
+        </Card>
+
+        {/* Developer Section */}
+        <Card style={styles.section} shadow="small">
+          <Text style={styles.sectionTitle}>Testing</Text>
+          
+          <SampleDataButton />
         </Card>
 
         {/* Ping Pro Section */}
@@ -224,7 +272,7 @@ const ProfileScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
