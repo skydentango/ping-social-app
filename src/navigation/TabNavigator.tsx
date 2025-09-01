@@ -22,9 +22,8 @@ const TabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, size }) => {
+        tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
-          const iconColor = focused ? colors.primary : colors.gray400;
 
           switch (route.name) {
             case 'Home':
@@ -46,7 +45,18 @@ const TabNavigator = () => {
               iconName = 'help-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={iconColor} />;
+          // Debug logging for tab icons
+          if (__DEV__) {
+            console.log(`Tab icon debug - ${route.name}:`, {
+              iconName,
+              focused,
+              color,
+              size,
+              finalColor: color || colors.primary
+            });
+          }
+
+          return <Ionicons name={iconName} size={size || 24} color={color || colors.primary} />;
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.gray400,
@@ -57,6 +67,10 @@ const TabNavigator = () => {
           paddingTop: spacing.xs,
           paddingBottom: Platform.OS === 'ios' ? spacing.lg : spacing.sm,
           height: Platform.OS === 'ios' ? 90 : 70,
+          elevation: 8,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         tabBarLabelStyle: {
           fontSize: 11,

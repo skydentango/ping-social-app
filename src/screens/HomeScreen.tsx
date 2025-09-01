@@ -19,6 +19,7 @@ const HomeScreen = () => {
   const [users, setUsers] = useState<{[key: string]: User}>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [respondingTo, setRespondingTo] = useState<{[key: string]: string}>({}); // pingId -> responseType
 
   useEffect(() => {
     if (!user) return;
@@ -142,14 +143,32 @@ const HomeScreen = () => {
   const handleResponse = async (pingId: string, response: 'yes' | 'no' | 'maybe') => {
     if (!user) return;
 
-    try {
-      const pingRef = doc(db, 'pings', pingId);
-      const newResponse: PingResponse = {
-        userId: user.id,
-        response,
-        respondedAt: new Date()
-      };
+    // Set loading state for this specific ping
+    setRespondingTo(prev => ({ ...prev, [pingId]: response }));
 
+    // Optimistic update - immediately update the UI
+    const newResponse: PingResponse = {
+      userId: user.id,
+      response,
+      respondedAt: new Date()
+    };
+
+    setPings(prevPings => 
+      prevPings.map(ping => {
+        if (ping.id === pingId) {
+          const filteredResponses = ping.responses.filter(r => r.userId !== user.id);
+          return {
+            ...ping,
+            responses: [...filteredResponses, newResponse]
+          };
+        }
+        return ping;
+      })
+    );
+
+    try {
+      // Update Firebase in the background
+      const pingRef = doc(db, 'pings', pingId);
       const ping = pings.find(p => p.id === pingId);
       if (ping) {
         const filteredResponses = ping.responses.filter(r => r.userId !== user.id);
@@ -158,7 +177,26 @@ const HomeScreen = () => {
         });
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to respond to ping');
+      // Revert optimistic update on error
+      setPings(prevPings => 
+        prevPings.map(ping => {
+          if (ping.id === pingId) {
+            return {
+              ...ping,
+              responses: ping.responses.filter(r => r.userId !== user.id)
+            };
+          }
+          return ping;
+        })
+      );
+      Alert.alert('Error', 'Failed to respond to ping. Please try again.');
+    } finally {
+      // Clear loading state
+      setRespondingTo(prev => {
+        const newState = { ...prev };
+        delete newState[pingId];
+        return newState;
+      });
     }
   };
 
@@ -178,9 +216,20 @@ const HomeScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, 'pings', pingId));
+              // Optimistic deletion - remove from UI immediately
+              const originalPings = pings;
+              setPings(prevPings => prevPings.filter(p => p.id !== pingId));
+              
+              try {
+                await deleteDoc(doc(db, 'pings', pingId));
+              } catch (deleteError) {
+                // Revert optimistic deletion on error
+                setPings(originalPings);
+                throw deleteError;
+              }
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete ping');
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              Alert.alert('Error', `Failed to delete ping: ${errorMessage}`);
             }
           },
         },
@@ -212,20 +261,31 @@ const HomeScreen = () => {
     const userResponse = getUserResponse(ping);
     const isSelected = userResponse?.response === responseType;
     const count = ping.responses.filter(r => r.response === responseType).length;
+    const isLoading = respondingTo[ping.id] === responseType;
 
     return (
       <TouchableOpacity
         style={[
           styles.responseButton,
-          isSelected && { backgroundColor: color, borderColor: color }
+          isSelected && { backgroundColor: color, borderColor: color },
+          isLoading && styles.responseButtonLoading
         ]}
         onPress={() => handleResponse(ping.id, responseType)}
+        disabled={isLoading}
       >
-        <Ionicons 
-          name={icon as any} 
-          size={16} 
-          color={isSelected ? colors.white : color} 
-        />
+        {isLoading ? (
+          <Ionicons 
+            name="hourglass" 
+            size={16} 
+            color={isSelected ? colors.white : color} 
+          />
+        ) : (
+          <Ionicons 
+            name={icon as any} 
+            size={16} 
+            color={isSelected ? colors.white : color} 
+          />
+        )}
         <Text style={[
           styles.responseButtonText,
           isSelected && { color: colors.white }
@@ -245,6 +305,16 @@ const HomeScreen = () => {
 
   const renderPing = ({ item }: { item: Ping }) => {
     const isMyPing = item.senderId === user?.id;
+    
+    // Debug logging for troubleshooting
+    if (__DEV__) {
+      console.log('Ping render debug:');
+      console.log('- Ping ID:', item.id);
+      console.log('- Sender ID:', item.senderId);
+      console.log('- Current User ID:', user?.id);
+      console.log('- Is My Ping:', isMyPing);
+      console.log('- Message:', item.message);
+    }
 
     return (
       <Card style={styles.pingCard} shadow="small">
@@ -252,7 +322,7 @@ const HomeScreen = () => {
           <View style={styles.pingInfo}>
             <View style={styles.pingMessageRow}>
               <Text style={styles.pingMessage}>{item.message}</Text>
-              {isMyPing && (
+              {(isMyPing || __DEV__) && (
                 <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => handleDeletePing(item.id)}
@@ -431,6 +501,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginHorizontal: 2,
     position: 'relative',
     minHeight: 36,
+  },
+  responseButtonLoading: {
+    opacity: 0.7,
   },
   responseButtonText: {
     fontSize: typography.xs,
