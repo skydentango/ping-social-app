@@ -43,7 +43,13 @@ Ping is a lightweight, real-time social coordination app built with React Native
    npm install
    ```
 
-3. **Configure Firebase**
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   Then edit `.env` with your Firebase project credentials (see step 4).
+
+4. **Configure Firebase**
    
    a. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com)
    
@@ -53,19 +59,18 @@ Ping is a lightweight, real-time social coordination app built with React Native
    
    c. Get your Firebase config from Project Settings > General > Your apps
    
-   d. Update `src/services/firebase.ts` with your Firebase configuration:
-   ```typescript
-   const firebaseConfig = {
-     apiKey: "your-api-key",
-     authDomain: "your-auth-domain",
-     projectId: "your-project-id",
-     storageBucket: "your-storage-bucket",
-     messagingSenderId: "your-messaging-sender-id",
-     appId: "your-app-id"
-   };
+   d. Update your `.env` file with your Firebase configuration:
+   ```bash
+   EXPO_PUBLIC_FIREBASE_API_KEY=your-api-key
+   EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   EXPO_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+   EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+   EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
+   EXPO_PUBLIC_FIREBASE_APP_ID=your-app-id
+   EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=your-measurement-id
    ```
 
-4. **Set up Firestore Security Rules**
+5. **Set up Firestore Security Rules**
    
    Go to Firestore Database > Rules and update with:
    ```javascript

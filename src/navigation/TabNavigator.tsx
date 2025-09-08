@@ -45,16 +45,7 @@ const TabNavigator = () => {
               iconName = 'help-outline';
           }
 
-          // Debug logging for tab icons
-          if (__DEV__) {
-            console.log(`Tab icon debug - ${route.name}:`, {
-              iconName,
-              focused,
-              color,
-              size,
-              finalColor: color || colors.primary
-            });
-          }
+
 
           return <Ionicons name={iconName} size={size || 24} color={color || colors.primary} />;
         },

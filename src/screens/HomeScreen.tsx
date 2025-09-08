@@ -306,15 +306,7 @@ const HomeScreen = () => {
   const renderPing = ({ item }: { item: Ping }) => {
     const isMyPing = item.senderId === user?.id;
     
-    // Debug logging for troubleshooting
-    if (__DEV__) {
-      console.log('Ping render debug:');
-      console.log('- Ping ID:', item.id);
-      console.log('- Sender ID:', item.senderId);
-      console.log('- Current User ID:', user?.id);
-      console.log('- Is My Ping:', isMyPing);
-      console.log('- Message:', item.message);
-    }
+
 
     return (
       <Card style={styles.pingCard} shadow="small">
@@ -322,7 +314,7 @@ const HomeScreen = () => {
           <View style={styles.pingInfo}>
             <View style={styles.pingMessageRow}>
               <Text style={styles.pingMessage}>{item.message}</Text>
-              {(isMyPing || __DEV__) && (
+              {isMyPing && (
                 <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => handleDeletePing(item.id)}
