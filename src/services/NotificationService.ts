@@ -6,11 +6,11 @@ import { Platform } from 'react-native';
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: false, // Deprecated but keeping for backwards compatibility
     shouldPlaySound: true,
     shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldShowBanner: true, // New way to show alerts
+    shouldShowList: true, // Show in notification center
   }),
 });
 
@@ -99,7 +99,24 @@ export function setupNotificationListeners(
   });
 
   return () => {
-    Notifications.removeNotificationSubscription(notificationListener);
-    Notifications.removeNotificationSubscription(responseListener);
+    notificationListener.remove();
+    responseListener.remove();
   };
+}
+
+// Schedule a local notification (for immediate in-app notifications)
+export async function scheduleLocalNotification(
+  title: string,
+  body: string,
+  data?: any
+) {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data,
+      sound: 'default',
+    },
+    trigger: null, // null means immediate
+  });
 } 

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, FlatList, Modal, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, FlatList, Modal, TouchableWithoutFeedback, Keyboard, SafeAreaView } from 'react-native';
+import { collection, addDoc, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../services/firebase';
 import { useAuth } from '../services/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Group, User } from '../types';
 import { getColors, typography, spacing, borderRadius, shadows } from '../utils/theme';
+import { sendPingNotification, scheduleLocalNotification } from '../services/NotificationService';
 
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
@@ -42,6 +43,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   placeholder: {
     color: colors.textTertiary,
+  },
+  expirationDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   messageInput: {
     borderWidth: 1,
@@ -200,6 +206,7 @@ const SendPingScreen = () => {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'groups' | 'friends'>('groups');
   const [sending, setSending] = useState(false);
+  const [expirationMinutes, setExpirationMinutes] = useState<number | null>(30); // Default 30 minutes
 
   useEffect(() => {
     if (!user) return;
@@ -275,22 +282,63 @@ const SendPingScreen = () => {
         responses: []
       };
 
+      // Add expiration if set
+      if (expirationMinutes !== null) {
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + expirationMinutes);
+        pingData.expiresAt = expiresAt;
+      }
+
+      let recipientName = '';
       if (pickerMode === 'groups' && selectedGroup) {
         // Group ping
         recipients = selectedGroup.members;
         pingData.groupId = selectedGroup.id;
         pingData.type = 'group';
         pingData.recipients = recipients;
+        recipientName = selectedGroup.name;
       } else if (pickerMode === 'friends' && selectedFriends.length > 0) {
         // Friends ping - include sender + selected friends
         recipients = [user.id, ...selectedFriends.map(friend => friend.id)];
         pingData.type = 'friends';
         pingData.recipients = recipients;
+        recipientName = `${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}`;
       }
 
       await addDoc(collection(db, 'pings'), pingData);
 
-      Alert.alert('Success', `Ping sent to ${pickerMode === 'groups' ? selectedGroup?.name : `${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}`}!`);
+      // Send push notifications to all recipients (excluding sender)
+      const recipientsToNotify = recipients.filter(id => id !== user.id);
+      
+      for (const recipientId of recipientsToNotify) {
+        try {
+          const recipientDoc = await getDoc(doc(db, 'users', recipientId));
+          if (recipientDoc.exists()) {
+            const recipientData = recipientDoc.data();
+            const pushToken = recipientData.pushToken;
+            
+            if (pushToken) {
+              await sendPingNotification(
+                pushToken,
+                user.displayName,
+                message.trim(),
+                pickerMode === 'groups' && selectedGroup ? selectedGroup.name : 'Direct Ping'
+              );
+            }
+          }
+        } catch (notifError) {
+          console.log('Failed to send notification to recipient:', recipientId, notifError);
+        }
+      }
+
+      // Show local notification for sender too (so they see confirmation)
+      await scheduleLocalNotification(
+        '🎉 Ping Sent!',
+        `Your ping was sent to ${recipientName}`,
+        { type: 'ping_sent' }
+      );
+
+      Alert.alert('Success', `Ping sent to ${recipientName}!`);
       
       // Reset form
       setMessage('');

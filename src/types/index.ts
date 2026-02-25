@@ -4,6 +4,7 @@ export interface User {
   displayName: string;
   profilePicture?: string; // URL to profile picture
   status: UserStatus;
+  pushToken?: string; // Expo push notification token
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +31,7 @@ export interface Ping {
   recipients: string[]; // User IDs - for individual friend pings or group members
   senderId: string;
   sentAt: Date;
+  expiresAt?: Date; // Optional - when the ping expires
   responses: PingResponse[];
   type: 'group' | 'friends'; // New field to distinguish ping types
 }

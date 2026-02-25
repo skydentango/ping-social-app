@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, SafeAreaView, StatusBar, Platform, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, SafeAreaView, StatusBar, Platform, RefreshControl, Modal, Image } from 'react-native';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../services/firebase';
@@ -20,6 +20,9 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [respondingTo, setRespondingTo] = useState<{[key: string]: string}>({}); // pingId -> responseType
+  const [showResponseModal, setShowResponseModal] = useState(false);
+  const [selectedResponseType, setSelectedResponseType] = useState<'yes' | 'no' | 'maybe' | null>(null);
+  const [selectedPingResponses, setSelectedPingResponses] = useState<PingResponse[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -35,13 +38,19 @@ const HomeScreen = () => {
         id: doc.id,
         ...doc.data(),
         sentAt: doc.data().sentAt?.toDate() || new Date(),
+        expiresAt: doc.data().expiresAt?.toDate() || null,
         responses: doc.data().responses || []
       })) as Ping[];
       
-      // Filter pings to only show ones the user should see
+      // Filter pings to only show ones the user should see AND not expired
       const userPings = allPings.filter(ping => {
         // User should see pings where they are in the recipients array
-        return ping.recipients && ping.recipients.includes(user.id);
+        const isRecipient = ping.recipients && ping.recipients.includes(user.id);
+        
+        // Check if ping is expired
+        const isExpired = ping.expiresAt && new Date() > ping.expiresAt;
+        
+        return isRecipient && !isExpired;
       });
       
       // Load only the groups and users we need for these pings
@@ -143,50 +152,64 @@ const HomeScreen = () => {
   const handleResponse = async (pingId: string, response: 'yes' | 'no' | 'maybe') => {
     if (!user) return;
 
+    // Check if user already selected this response - if so, unselect it
+    const ping = pings.find(p => p.id === pingId);
+    const currentUserResponse = ping?.responses.find(r => r.userId === user.id);
+    const isUnselectingSameResponse = currentUserResponse?.response === response;
+
     // Set loading state for this specific ping
     setRespondingTo(prev => ({ ...prev, [pingId]: response }));
 
-    // Optimistic update - immediately update the UI
-    const newResponse: PingResponse = {
-      userId: user.id,
-      response,
-      respondedAt: new Date()
+    // Determine new responses array
+    const getNewResponses = (existingResponses: PingResponse[]) => {
+      const filteredResponses = existingResponses.filter(r => r.userId !== user.id);
+      
+      // If unselecting, just return filtered (removes user's response)
+      if (isUnselectingSameResponse) {
+        return filteredResponses;
+      }
+      
+      // Otherwise, add the new response
+      const newResponse: PingResponse = {
+        userId: user.id,
+        response,
+        respondedAt: new Date()
+      };
+      return [...filteredResponses, newResponse];
     };
 
+    // Optimistic update - immediately update the UI
     setPings(prevPings => 
-      prevPings.map(ping => {
-        if (ping.id === pingId) {
-          const filteredResponses = ping.responses.filter(r => r.userId !== user.id);
+      prevPings.map(p => {
+        if (p.id === pingId) {
           return {
-            ...ping,
-            responses: [...filteredResponses, newResponse]
+            ...p,
+            responses: getNewResponses(p.responses)
           };
         }
-        return ping;
+        return p;
       })
     );
 
     try {
       // Update Firebase in the background
       const pingRef = doc(db, 'pings', pingId);
-      const ping = pings.find(p => p.id === pingId);
       if (ping) {
-        const filteredResponses = ping.responses.filter(r => r.userId !== user.id);
         await updateDoc(pingRef, {
-          responses: [...filteredResponses, newResponse]
+          responses: getNewResponses(ping.responses)
         });
       }
     } catch (error) {
       // Revert optimistic update on error
       setPings(prevPings => 
-        prevPings.map(ping => {
-          if (ping.id === pingId) {
+        prevPings.map(p => {
+          if (p.id === pingId) {
             return {
-              ...ping,
-              responses: ping.responses.filter(r => r.userId !== user.id)
+              ...p,
+              responses: ping?.responses || []
             };
           }
-          return ping;
+          return p;
         })
       );
       Alert.alert('Error', 'Failed to respond to ping. Please try again.');
@@ -241,14 +264,27 @@ const HomeScreen = () => {
     return ping.responses.find(r => r.userId === user?.id);
   };
 
-  const getTimeAgo = (date: Date): string => {
+  const getTimeAgo = (date: Date | any): string => {
     const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    // Ensure date is a proper Date object
+    const dateObj = date instanceof Date ? date : (date?.toDate ? date.toDate() : new Date(date));
+    const diffInMinutes = Math.floor((now.getTime() - dateObj.getTime()) / (1000 * 60));
     
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const showResponseDetails = (ping: Ping, responseType: 'yes' | 'no' | 'maybe') => {
+    const responsesOfType = ping.responses.filter(r => r.response === responseType);
+    
+    // Only show if there's at least one response
+    if (responsesOfType.length > 0) {
+      setSelectedResponseType(responseType);
+      setSelectedPingResponses(responsesOfType);
+      setShowResponseModal(true);
+    }
   };
 
   const renderResponseButton = (
@@ -271,6 +307,7 @@ const HomeScreen = () => {
           isLoading && styles.responseButtonLoading
         ]}
         onPress={() => handleResponse(ping.id, responseType)}
+        onLongPress={() => showResponseDetails(ping, responseType)}
         disabled={isLoading}
       >
         {isLoading ? (
@@ -306,7 +343,25 @@ const HomeScreen = () => {
   const renderPing = ({ item }: { item: Ping }) => {
     const isMyPing = item.senderId === user?.id;
     
+    // Calculate expiration progress
+    const getExpirationProgress = () => {
+      if (!item.expiresAt) return null;
+      
+      const now = new Date().getTime();
+      const sent = item.sentAt.getTime();
+      const expires = item.expiresAt.getTime();
+      const total = expires - sent;
+      const remaining = expires - now;
+      const progress = Math.max(0, Math.min(1, remaining / total));
+      
+      return {
+        progress,
+        timeRemaining: Math.max(0, Math.ceil(remaining / (1000 * 60))), // minutes
+        isExpiringSoon: remaining < 15 * 60 * 1000, // Less than 15 minutes
+      };
+    };
 
+    const expirationData = getExpirationProgress();
 
     return (
       <Card style={styles.pingCard} shadow="small">
@@ -336,6 +391,41 @@ const HomeScreen = () => {
             </View>
           </View>
         </View>
+        
+        {/* Expiration Progress Bar */}
+        {expirationData && (
+          <View style={styles.expirationContainer}>
+            <View style={styles.expirationHeader}>
+              <View style={styles.expirationTextContainer}>
+                <Ionicons 
+                  name="time-outline" 
+                  size={14} 
+                  color={expirationData.isExpiringSoon ? colors.error : colors.textSecondary} 
+                />
+                <Text style={[
+                  styles.expirationText,
+                  expirationData.isExpiringSoon && styles.expirationTextUrgent
+                ]}>
+                  {expirationData.timeRemaining < 60 
+                    ? `${expirationData.timeRemaining}m remaining`
+                    : `${Math.floor(expirationData.timeRemaining / 60)}h ${expirationData.timeRemaining % 60}m remaining`
+                  }
+                </Text>
+              </View>
+            </View>
+            <View style={styles.progressBarContainer}>
+              <View 
+                style={[
+                  styles.progressBar, 
+                  { 
+                    width: `${expirationData.progress * 100}%`,
+                    backgroundColor: expirationData.isExpiringSoon ? colors.error : colors.primary 
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+        )}
         
         <View style={styles.responseContainer}>
           <Text style={styles.responseLabel}>Your response</Text>
@@ -387,6 +477,69 @@ const HomeScreen = () => {
           }
         />
       )}
+
+      {/* Response Details Modal */}
+      <Modal
+        visible={showResponseModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowResponseModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedResponseType === 'yes' && '✅ Yes Responses'}
+                {selectedResponseType === 'maybe' && '🤔 Maybe Responses'}
+                {selectedResponseType === 'no' && '❌ No Responses'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowResponseModal(false)}>
+                <Ionicons name="close" size={28} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              {selectedPingResponses.map((response, index) => {
+                const respondent = users[response.userId];
+                const hasProfilePicture = respondent?.profilePicture && respondent.profilePicture.trim() !== '';
+                
+                return (
+                  <View key={index} style={styles.responseItem}>
+                    <View style={styles.responseUserInfo}>
+                      <View style={styles.responseAvatar}>
+                        {hasProfilePicture ? (
+                          <Image 
+                            source={{ uri: respondent.profilePicture }} 
+                            style={styles.responseAvatarImage}
+                          />
+                        ) : (
+                          <Text style={styles.responseAvatarText}>
+                            {respondent?.displayName?.charAt(0).toUpperCase() || '?'}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.responseDetails}>
+                        <Text style={styles.responseName}>
+                          {respondent?.displayName || 'Unknown'}
+                          {response.userId === user?.id && ' (You)'}
+                        </Text>
+                        <Text style={styles.responseTime}>
+                          {getTimeAgo(response.respondedAt)}
+                        </Text>
+                      </View>
+                    </View>
+                    {respondent?.status && (
+                      <Text style={styles.responseStatus}>
+                        {respondent.status.emoji} {respondent.status.text}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -468,6 +621,40 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderTopColor: colors.gray100,
     paddingTop: spacing.sm,
   },
+  expirationContainer: {
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray100,
+  },
+  expirationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  expirationTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  expirationText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.medium,
+  },
+  expirationTextUrgent: {
+    color: colors.error,
+  },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: colors.gray200,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 2,
+  },
   responseLabel: {
     fontSize: typography.xs,
     fontWeight: typography.medium,
@@ -537,6 +724,84 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '70%',
+    ...shadows.large,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
+  },
+  modalTitle: {
+    fontSize: typography.lg,
+    fontWeight: typography.bold,
+    color: colors.textPrimary,
+  },
+  modalBody: {
+    padding: spacing.md,
+  },
+  responseItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
+  },
+  responseUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  responseAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+    overflow: 'hidden',
+  },
+  responseAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  responseAvatarText: {
+    color: colors.white,
+    fontSize: typography.base,
+    fontWeight: typography.bold,
+  },
+  responseDetails: {
+    flex: 1,
+  },
+  responseName: {
+    fontSize: typography.base,
+    fontWeight: typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  responseTime: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  responseStatus: {
+    fontSize: typography.sm,
+    color: colors.textSecondary,
   },
 });
 

@@ -12,6 +12,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateUserStatus: (status: UserStatus) => Promise<void>;
   updateProfilePicture: (imageUri: string) => Promise<void>;
+  updatePushToken: (token: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -142,6 +143,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const updatePushToken = async (token: string) => {
+    if (!user) throw new Error('No user logged in');
+
+    const userRef = doc(db, 'users', user.id);
+    await updateDoc(userRef, {
+      pushToken: token,
+      updatedAt: new Date(),
+    });
+  };
+
   const logout = async () => {
     await signOut(auth);
   };
@@ -154,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     updateUserStatus,
     updateProfilePicture,
+    updatePushToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
