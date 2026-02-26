@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 
 import { AuthProvider, useAuth } from './src/services/AuthContext';
@@ -58,12 +59,14 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-        <StatusBar style="auto" />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+          <StatusBar style="auto" />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 const styles = StyleSheet.create({
