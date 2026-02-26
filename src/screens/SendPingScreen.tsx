@@ -191,6 +191,43 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
+  expirationModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  expirationModalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    maxHeight: '60%',
+    paddingBottom: spacing.xl,
+  },
+  expirationOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
+  },
+  expirationOptionSelected: {
+    backgroundColor: colors.primaryLight,
+  },
+  expirationOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  expirationOptionText: {
+    fontSize: typography.base,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  expirationOptionTextSelected: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
 });
 
 const SendPingScreen = () => {
@@ -207,6 +244,8 @@ const SendPingScreen = () => {
   const [pickerMode, setPickerMode] = useState<'groups' | 'friends'>('groups');
   const [sending, setSending] = useState(false);
   const [expirationMinutes, setExpirationMinutes] = useState<number | null>(30); // Default 30 minutes
+  const [showExpirationModal, setShowExpirationModal] = useState(false);
+  const [customMinutes, setCustomMinutes] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -253,6 +292,70 @@ const SendPingScreen = () => {
       unsubscribeFriends();
     };
   }, [user]);
+
+  const expirationOptions = [
+    { label: '15 minutes', value: 15 },
+    { label: '30 minutes', value: 30 },
+    { label: '1 hour', value: 60 },
+    { label: '2 hours', value: 120 },
+    { label: '6 hours', value: 360 },
+    { label: '12 hours', value: 720 },
+    { label: '1 day', value: 1440 },
+    { label: 'Custom...', value: -1 },
+  ];
+
+  const getExpirationText = () => {
+    if (expirationMinutes === null) return 'No expiration';
+    
+    const option = expirationOptions.find(opt => opt.value === expirationMinutes);
+    if (option && option.value !== -1) return option.label;
+    
+    // Custom time
+    if (expirationMinutes < 60) {
+      return `${expirationMinutes} minutes`;
+    } else if (expirationMinutes < 1440) {
+      const hours = Math.floor(expirationMinutes / 60);
+      const mins = expirationMinutes % 60;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours} hour${hours > 1 ? 's' : ''}`;
+    } else {
+      const days = Math.floor(expirationMinutes / 1440);
+      const hours = Math.floor((expirationMinutes % 1440) / 60);
+      return hours > 0 ? `${days}d ${hours}h` : `${days} day${days > 1 ? 's' : ''}`;
+    }
+  };
+
+  const handleExpirationSelect = (value: number) => {
+    if (value === -1) {
+      // Custom option
+      setCustomMinutes('');
+      setShowExpirationModal(false);
+      // Show a simple prompt
+      Alert.prompt(
+        'Custom Expiration Time',
+        'Enter the number of minutes until this ping expires:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Set',
+            onPress: (text?: string) => {
+              const minutes = parseInt(text || '0', 10);
+              if (minutes > 0 && minutes <= 10080) { // Max 7 days
+                setExpirationMinutes(minutes);
+              } else {
+                Alert.alert('Invalid Time', 'Please enter a value between 1 and 10080 minutes (7 days)');
+              }
+            }
+          }
+        ],
+        'plain-text',
+        '',
+        'number-pad'
+      );
+    } else {
+      setExpirationMinutes(value);
+      setShowExpirationModal(false);
+    }
+  };
 
   const sendPing = async () => {
     if (!user || !message.trim()) {
@@ -456,6 +559,20 @@ const SendPingScreen = () => {
           />
           <Text style={styles.characterCount}>{message.length}/200</Text>
 
+          <Text style={styles.label}>Expires In</Text>
+          <TouchableOpacity
+            style={styles.groupSelector}
+            onPress={() => setShowExpirationModal(true)}
+          >
+            <View style={styles.expirationDisplay}>
+              <Ionicons name="time-outline" size={20} color={colors.primary} />
+              <Text style={styles.groupSelectorText}>
+                {getExpirationText()}
+              </Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.sendButton, (
               (pickerMode === 'groups' && !selectedGroup) || 
@@ -532,6 +649,61 @@ const SendPingScreen = () => {
               />
             )}
           </View>
+        </Modal>
+
+        {/* Expiration Time Picker Modal */}
+        <Modal
+          visible={showExpirationModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowExpirationModal(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowExpirationModal(false)}>
+            <View style={styles.expirationModalOverlay}>
+              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+                <View style={styles.expirationModalContent}>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalSpacer} />
+                    <Text style={styles.modalTitle}>Expires In</Text>
+                    <TouchableOpacity onPress={() => setShowExpirationModal(false)}>
+                      <Ionicons name="close" size={24} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <FlatList
+                    data={expirationOptions}
+                    keyExtractor={(item) => item.value.toString()}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.expirationOption,
+                          expirationMinutes === item.value && styles.expirationOptionSelected
+                        ]}
+                        onPress={() => handleExpirationSelect(item.value)}
+                      >
+                        <View style={styles.expirationOptionContent}>
+                          <Ionicons 
+                            name={item.value === -1 ? "create-outline" : "time-outline"} 
+                            size={20} 
+                            color={expirationMinutes === item.value ? colors.primary : colors.textSecondary} 
+                          />
+                          <Text style={[
+                            styles.expirationOptionText,
+                            expirationMinutes === item.value && styles.expirationOptionTextSelected
+                          ]}>
+                            {item.label}
+                          </Text>
+                        </View>
+                        {expirationMinutes === item.value && (
+                          <Ionicons name="checkmark" size={24} color={colors.primary} />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
         </Modal>
       </View>
     </TouchableWithoutFeedback>
