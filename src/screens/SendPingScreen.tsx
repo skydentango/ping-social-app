@@ -419,14 +419,20 @@ const SendPingScreen = () => {
           if (recipientDoc.exists()) {
             const recipientData = recipientDoc.data();
             const pushToken = recipientData.pushToken;
+            const status = recipientData.status;
             
-            if (pushToken) {
+            // Check if user's status is "Busy" - if so, skip notification
+            const isBusy = status?.text?.toLowerCase().includes('busy');
+            
+            if (pushToken && !isBusy) {
               await sendPingNotification(
                 pushToken,
                 user.displayName,
                 message.trim(),
                 pickerMode === 'groups' && selectedGroup ? selectedGroup.name : 'Direct Ping'
               );
+            } else if (isBusy) {
+              console.log(`Skipping notification for ${recipientId} - status is Busy`);
             }
           }
         } catch (notifError) {
@@ -434,12 +440,15 @@ const SendPingScreen = () => {
         }
       }
 
-      // Show local notification for sender too (so they see confirmation)
-      await scheduleLocalNotification(
-        '🎉 Ping Sent!',
-        `Your ping was sent to ${recipientName}`,
-        { type: 'ping_sent' }
-      );
+      // Show local notification for sender too (only if sender is not busy)
+      const senderIsBusy = user.status?.text?.toLowerCase().includes('busy');
+      if (!senderIsBusy) {
+        await scheduleLocalNotification(
+          '🎉 Ping Sent!',
+          `Your ping was sent to ${recipientName}`,
+          { type: 'ping_sent' }
+        );
+      }
 
       Alert.alert('Success', `Ping sent to ${recipientName}!`);
       

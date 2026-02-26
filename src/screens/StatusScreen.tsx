@@ -30,7 +30,7 @@ const statusOptions: StatusOption[] = [
   {
     emoji: '🔴',
     text: 'Busy',
-    description: 'Not available right now',
+    description: 'Not available · Notifications muted',
     color: '#E74C3C', // Red - works in both themes
   },
 ];
@@ -138,6 +138,18 @@ const StatusScreen = () => {
           <Text style={styles.sectionSubtitle}>
             Let your friends know what you're up to
           </Text>
+          
+          {/* Info about Busy status */}
+          {user?.status?.text === 'Busy' && (
+            <Card style={styles.infoCard} shadow="small">
+              <View style={styles.infoContent}>
+                <Ionicons name="notifications-off" size={20} color={colors.warning} />
+                <Text style={styles.infoText}>
+                  You won't receive push notifications while your status is Busy
+                </Text>
+              </View>
+            </Card>
+          )}
           
           <View style={styles.statusOptions}>
             {statusOptions.map(renderStatusOption)}
@@ -259,6 +271,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: typography.xs,
     fontWeight: typography.medium,
     color: colors.white,
+  },
+  infoCard: {
+    marginBottom: spacing.md,
+    backgroundColor: colors.warningLight || '#FFF3E0',
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  infoContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: typography.sm,
+    color: colors.textPrimary,
+    lineHeight: 20,
   },
 });
 
